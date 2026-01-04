@@ -81,7 +81,7 @@ If you have [`uv`](https://docs.astral.sh/uv/) installed:
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/mlx-sam3.git
+git clone https://github.com/Deekshith-Dade/mlx-sam3.git
 cd mlx-sam3
 
 # Install project dependencies
