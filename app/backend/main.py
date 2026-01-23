@@ -10,6 +10,7 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 
+import mlx.core as mx
 import numpy as np
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -202,7 +203,8 @@ async def upload_image(file: UploadFile = File(...)):
             "width": image.size[0],
             "height": image.size[1],
             "message": "Image uploaded and processed successfully",
-            "processing_time_ms": round(processing_time_ms, 2)
+            "processing_time_ms": round(processing_time_ms, 2),
+            "peak_memory_mb": round(mx.get_peak_memory() / (1024 * 1024), 2)
         }
     
     except Exception as e:
@@ -233,7 +235,8 @@ async def segment_with_text(request: TextPromptRequest):
             "session_id": request.session_id,
             "prompt": request.prompt,
             "results": results,
-            "processing_time_ms": round(processing_time_ms, 2)
+            "processing_time_ms": round(processing_time_ms, 2),
+            "peak_memory_mb": round(mx.get_peak_memory() / (1024 * 1024), 2)
         }
     
     except Exception as e:
@@ -280,7 +283,8 @@ async def add_box_prompt(request: BoxPromptRequest):
             "session_id": request.session_id,
             "box_type": "positive" if request.label else "negative",
             "results": serialize_state(state),
-            "processing_time_ms": round(processing_time_ms, 2)
+            "processing_time_ms": round(processing_time_ms, 2),
+            "peak_memory_mb": round(mx.get_peak_memory() / (1024 * 1024), 2)
         }
     
     except Exception as e:
@@ -311,7 +315,8 @@ async def reset_prompts(request: SessionRequest):
             "session_id": request.session_id,
             "message": "All prompts reset",
             "results": serialize_state(state),
-            "processing_time_ms": round(processing_time_ms, 2)
+            "processing_time_ms": round(processing_time_ms, 2),
+            "peak_memory_mb": round(mx.get_peak_memory() / (1024 * 1024), 2)
         }
     
     except Exception as e:
