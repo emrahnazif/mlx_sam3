@@ -93,8 +93,8 @@ def main():
 
     second = time.perf_counter()
     print(f"Model loaded in {second - start:.2f} seconds.")
-    
-    image_path = "assets/images/test_image.jpg"
+
+    image_path = "fietzfotos-road-7064492_1920.jpg"
     image = Image.open(image_path)
     width, height = image.size
     processor = Sam3Processor(model, confidence_threshold=0.5)
@@ -102,41 +102,80 @@ def main():
     inter = time.perf_counter()
     print(f"Image processed in {inter - second:.2f} seconds.")
 
+    # =========================================================
+    # Example 1: Text prompt
+    # =========================================================
+    print("\n--- Example 1: Text Prompt ---")
     processor.reset_all_prompts(inference_state)
-    inference_state = processor.set_text_prompt(state=inference_state, prompt="face")
+    inference_state = processor.set_text_prompt(state=inference_state, prompt="road")
+    masks, boxes, scores = inference_state["masks"], inference_state["boxes"], inference_state["scores"]
+    t1 = time.perf_counter()
+    print(f"Text prompt inference in {t1 - inter:.2f} seconds.")
+    print(f"Objects found: {len(scores)}, Scores: {scores}")
+
+    # =========================================================
+    # Example 2: Point prompts (positive + negative)
+    #
+    # Points must be normalized to [0, 1] by dividing pixel
+    # coordinates by image width/height:
+    #   norm_x = pixel_x / width
+    #   norm_y = pixel_y / height
+    #
+    # label=True  → positive point (object is HERE)
+    # label=False → negative point (NOT this region)
+    # =========================================================
+    print("\n--- Example 2: Point Prompts ---")
+    processor.reset_all_prompts(inference_state)
+
+    # All points submitted in a single batch call:
+    #   pos_point → positive (foreground, lower-center of road)
+    #   neg_point → negative (background, upper-center sky)
+    pos_point = [0.5, 0.7]   # lower-center (road)
+    neg_point = [0.5, 0.1]   # upper-center (sky)
+    inference_state = processor.add_points_prompt(
+        points=[pos_point, neg_point],
+        labels=[True, False],   # True=foreground, False=background
+        state=inference_state,
+    )
+    t2 = time.perf_counter()
+    print(f"Batch points {pos_point} (+) and {neg_point} (-):")
+    print(f"  Objects found: {len(inference_state['scores'])}, Scores: {inference_state['scores']}")
+    print(f"Point prompt inference in {t2 - t1:.2f} seconds.")
+
+    # =========================================================
+    # Example 3: Mixed — text prompt + point refinement
+    # =========================================================
+    print("\n--- Example 3: Text + Point Prompts combined ---")
+    processor.reset_all_prompts(inference_state)
+    inference_state = processor.set_text_prompt(state=inference_state, prompt="road")
+
+    # Positive click to confirm the road area
+    road_point = [width * 0.5 / width, height * 0.8 / height]
+    inference_state = processor.add_point_prompt(
+        point=road_point,
+        label=True,
+        state=inference_state,
+    )
+    t3 = time.perf_counter()
     output = inference_state
-    
-    # Get the masks, bounding boxes, and scores
     masks, boxes, scores = output["masks"], output["boxes"], output["scores"]
-    third = time.perf_counter()
-    print(f"Inference completed in {third - second:.2f} seconds.")
-    print(f"Total Objects Found: {len(scores)}")
-    print(f"Scores: {scores}")
+    print(f"Text + point inference in {t3 - t2:.2f} seconds.")
+    print(f"Objects found: {len(scores)}, Scores: {scores}")
     print(f"Boxes: {boxes}")
 
     # === Semantic Segmentation Visualization ===
     if "semantic_seg" in output:
         seg_mask = output["semantic_seg"]
-        print(f"Semantic mask shape: {seg_mask.shape}")
-        
-        # Save the raw binary mask
+        print(f"\nSemantic mask shape: {seg_mask.shape}")
         save_semantic_mask(seg_mask, "semantic_mask.png")
-        
-        # Create and save overlay visualization
         overlay_img = visualize_semantic_mask(
-            image, 
-            seg_mask, 
-            alpha=0.5, 
-            color=(0, 255, 128)  # Green-ish overlay
+            image,
+            seg_mask,
+            alpha=0.5,
+            color=(0, 255, 128),
         )
         overlay_img.save("semantic_overlay.png")
         print("Semantic overlay saved to: semantic_overlay.png")
-        
-        # Show the images (optional - comment out if running headless)
-        # overlay_img.show()
-    else:
-        print("semantic_seg not found in output. Add this line in sam3_image_processor.py after line 187:")
-        print('    state["semantic_seg"] = seg_mask')
 
 
 if __name__ == "__main__":

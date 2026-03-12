@@ -123,6 +123,55 @@ class Sam3Processor:
 
         return self._call_grounding(state)
 
+    def add_point_prompt(self, point: List, label: bool, state: Dict):
+        """Adds a point prompt and runs inference.
+        The image needs to be set, but not necessarily the text prompt.
+        point: [x, y] normalized in [0, 1] range (x=horizontal, y=vertical).
+        label: True for a positive point (foreground), False for a negative point (background).
+        """
+        if "backbone_out" not in state:
+            raise ValueError("You must call set_image before add_point_prompt")
+
+        if "language_features" not in state["backbone_out"]:
+            dummy_text_outputs = self.model.backbone.call_text(["visual"])
+            state["backbone_out"].update(dummy_text_outputs)
+
+        if "geometric_prompt" not in state:
+            state["geometric_prompt"] = self.model._get_dummy_prompt()
+
+        # shape: (N_points=1, batch_size=1, 2)
+        points = mx.array(point, dtype=mx.float32).reshape(1, 1, 2)
+        # 1 = positive (foreground), 0 = negative (background)
+        # Use int32 — MLX GPU scatter doesn't support int64; model casts internally
+        labels = mx.array([int(label)], dtype=mx.int32).reshape(1, 1)
+        state["geometric_prompt"].append_points(points, labels)
+
+        return self._call_grounding(state)
+
+    def add_points_prompt(self, points: List[List[float]], labels: List[bool], state: Dict):
+        """Add multiple points (positive and negative) in a single call.
+
+        points: list of [x, y] pairs, each normalized to [0, 1]
+        labels: list of True (positive/foreground) or False (negative/background)
+        """
+        if "backbone_out" not in state:
+            raise ValueError("You must call set_image before add_points_prompt")
+
+        if "language_features" not in state["backbone_out"]:
+            dummy_text_outputs = self.model.backbone.call_text(["visual"])
+            state["backbone_out"].update(dummy_text_outputs)
+
+        if "geometric_prompt" not in state:
+            state["geometric_prompt"] = self.model._get_dummy_prompt()
+
+        # shape: (N_points, 1, 2)
+        pts = mx.array(points, dtype=mx.float32).reshape(len(points), 1, 2)
+        # shape: (N_points, 1) — 1=positive, 0=negative
+        lbs = mx.array([int(l) for l in labels], dtype=mx.int32).reshape(len(labels), 1)
+        state["geometric_prompt"].append_points(pts, lbs)
+
+        return self._call_grounding(state)
+
     def reset_all_prompts(self, state: Dict):
         """Removes all the prompts and results"""
         if "backbone_out" in state:

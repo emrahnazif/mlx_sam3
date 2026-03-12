@@ -276,7 +276,7 @@ class Prompt:
             point_embeddings = mx.zeros((point_seq_len, bs, 2))
         if point_labels is None:
             point_labels = mx.ones(
-                (point_seq_len, bs), dtype=mx.int64
+                (point_seq_len, bs), dtype=mx.int32
             )
         if point_mask is None:
             point_mask = mx.zeros((bs, point_seq_len), dtype=mx.bool_)
@@ -315,6 +315,27 @@ class Prompt:
         self.box_labels = self.box_labels.squeeze(-1)
         self.box_embeddings, self.box_mask = concat_padded_sequences(
             self.box_embeddings, self.box_mask, boxes, mask
+        )
+
+    def append_points(self, points, labels, mask=None):
+        if self.point_embeddings is None:
+            self.point_embeddings = points
+            self.point_labels = labels
+            self.point_mask = mask
+            return
+
+        bs = self.point_embeddings.shape[1]
+        assert points.shape[1] == labels.shape[1] == bs
+        assert list(points.shape[:2]) == list(labels.shape[:2])
+        if mask is None:
+            mask = mx.zeros((bs, points.shape[0]), dtype=mx.bool_)
+
+        self.point_labels, _ = concat_padded_sequences(
+            self.point_labels[..., None], self.point_mask, labels[..., None], mask
+        )
+        self.point_labels = self.point_labels.squeeze(-1)
+        self.point_embeddings, self.point_mask = concat_padded_sequences(
+            self.point_embeddings, self.point_mask, points, mask
         )
 
     def fun(self):
